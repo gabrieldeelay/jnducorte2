@@ -5,7 +5,7 @@ import { BookingState, BookingRecord, ServiceCategory, Service } from './types';
 import { SERVICES, TIME_SLOTS, DAYS_OF_WEEK, BARBER_PHONE, BARBERS } from './constants';
 import { bookingService } from './services/bookingService';
 import { isSupabaseConfigured, supabase } from './services/supabase';
-import { Calendar, ChevronLeft, ChevronRight, ArrowRight, CheckCircle2, MessageCircle, Clock, User, Scissors, MapPin, Instagram, Phone, Lock, LogIn, LayoutDashboard, Smartphone, Check, X, Sparkles, UserCircle2, Trash2, Loader2, CloudOff, Cloud, Database, RefreshCcw, Bell, BellOff, Volume2, XCircle, Activity, Download, Wifi, Search, CalendarCheck, Ban, Filter, DollarSign, ArrowDownUp, SlidersHorizontal, Store, Power, List, Grid3X3, Settings } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, ArrowRight, CheckCircle2, MessageCircle, Clock, User, Scissors, MapPin, Instagram, Phone, Lock, LogIn, LayoutDashboard, Smartphone, Check, X, Sparkles, UserCircle2, Trash2, Loader2, CloudOff, Cloud, Database, RefreshCcw, Bell, BellOff, Volume2, XCircle, Activity, Download, Wifi, Search, CalendarCheck, Ban, Filter, DollarSign, ArrowDownUp, SlidersHorizontal, Store, Power, List, Grid3X3, Settings, TrendingUp } from 'lucide-react';
 
 // Declaração global para o OneSignal
 declare global {
@@ -51,7 +51,7 @@ const App: React.FC = () => {
   const [sortBy, setSortBy] = useState<'created_desc' | 'schedule_asc'>('created_desc');
   const [dashboardView, setDashboardView] = useState<'list' | 'calendar'>('list');
   const [dashboardDate, setDashboardDate] = useState<Date>(new Date());
-  const [adminTab, setAdminTab] = useState<'bookings' | 'settings'>('bookings');
+  const [adminTab, setAdminTab] = useState<'bookings' | 'finance' | 'settings'>('bookings');
 
   // Client Check Booking States
   const [searchPhone, setSearchPhone] = useState('');
@@ -1302,36 +1302,53 @@ const App: React.FC = () => {
     return (
         <div className="animate-fade-in space-y-4">
             {/* Date Navigation */}
-            <div className="flex items-center justify-between bg-slate-800 p-3 rounded-xl border border-slate-700 mb-4">
+            <div className="flex items-center justify-between bg-slate-800 p-3 rounded-xl border border-slate-700 mb-4 shadow-lg">
                 <button onClick={() => changeCalendarDate(-1)} className="p-2 hover:bg-slate-700 rounded-lg text-slate-300">
                     <ChevronLeft size={20} />
                 </button>
                 <div className="text-center">
                     <h3 className="text-white font-bold text-lg">{dashboardDate.toLocaleDateString('pt-BR')}</h3>
-                    <p className="text-xs text-slate-400 uppercase">{DAYS_OF_WEEK[dashboardDate.getDay()]}</p>
+                    <p className="text-xs text-slate-400 uppercase tracking-widest">{DAYS_OF_WEEK[dashboardDate.getDay()]}</p>
                 </div>
                 <button onClick={() => changeCalendarDate(1)} className="p-2 hover:bg-slate-700 rounded-lg text-slate-300">
                     <ChevronRight size={20} />
                 </button>
             </div>
 
-            {/* Calendar Grid */}
-            <div className="overflow-x-auto pb-4">
-                <div className="min-w-[600px] md:min-w-full grid grid-cols-3 gap-2">
-                    {BARBERS.map(barber => (
-                        <div key={barber.id} className="flex flex-col gap-2">
-                            {/* Barber Header */}
-                            <div className="bg-slate-800 p-2 rounded-lg border border-slate-700 text-center sticky top-0 z-10 shadow-lg">
-                                <div className="w-8 h-8 rounded-full overflow-hidden mx-auto mb-1 border border-slate-600">
-                                    <img src={barber.avatarUrl} alt={barber.name} className="w-full h-full object-cover" />
+            {/* Fixed Height Scrollable Grid Container */}
+            <div className="h-[65vh] flex flex-col bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden shadow-2xl">
+                
+                {/* 1. Header Row (Fixed) */}
+                <div className="grid grid-cols-3 divide-x divide-slate-800 bg-slate-800 border-b border-slate-700 z-20 shadow-md">
+                    {BARBERS.map(barber => {
+                         const barberBookings = dayBookings.filter(b => b.barberName === barber.name && b.status !== 'cancelled');
+                         const totalRevenue = barberBookings.reduce((acc, curr) => acc + curr.price, 0);
+                         
+                         return (
+                            <div key={barber.id} className="p-3 text-center flex flex-col items-center gap-1.5">
+                                <div className="relative">
+                                    <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-slate-600">
+                                        <img src={barber.avatarUrl} alt={barber.name} className="w-full h-full object-cover" />
+                                    </div>
+                                    <span className="absolute -bottom-1 -right-1 bg-blue-600 text-[10px] font-bold px-1.5 rounded-full border border-slate-800 text-white shadow-sm">
+                                        {barberBookings.length}
+                                    </span>
                                 </div>
-                                <h4 className="text-xs font-bold text-slate-200 truncate">{barber.name.split(' ')[0]}</h4>
+                                <div className="w-full">
+                                    <h4 className="text-xs font-bold text-white truncate">{barber.name.split(' ')[0]}</h4>
+                                    <p className="text-[10px] text-green-400 font-mono font-medium">R$ {totalRevenue.toFixed(0)}</p>
+                                </div>
                             </div>
+                         );
+                    })}
+                </div>
 
-                            {/* Time Slots */}
-                            <div className="space-y-2">
+                {/* 2. Scrollable Body Row */}
+                <div className="flex-1 overflow-y-auto bg-slate-900/50 scrollbar-hide md:scrollbar-default">
+                    <div className="grid grid-cols-3 divide-x divide-slate-800/50 min-h-0">
+                         {BARBERS.map(barber => (
+                            <div key={barber.id} className="flex flex-col">
                                 {TIME_SLOTS.map(time => {
-                                    // Find booking for this slot
                                     const slotBooking = dayBookings.find(b => 
                                         b.barberName === barber.name && 
                                         b.time === time && 
@@ -1340,46 +1357,61 @@ const App: React.FC = () => {
 
                                     return (
                                         <div 
-                                            key={`${barber.id}-${time}`} 
-                                            className={`p-2 rounded-lg border text-xs min-h-[60px] flex flex-col justify-center relative ${
-                                                slotBooking 
-                                                ? (slotBooking.status === 'completed' ? 'bg-green-900/20 border-green-800' : 'bg-red-900/20 border-red-800')
-                                                : 'bg-slate-900/50 border-slate-800 text-slate-600'
+                                            key={`${barber.id}-${time}`}
+                                            className={`relative min-h-[56px] border-b border-dashed border-slate-800/50 flex flex-col justify-center p-1 transition-all ${
+                                                slotBooking ? 'z-10' : ''
                                             }`}
                                         >
-                                            <span className="absolute top-1 right-2 opacity-50 text-[10px] font-mono">{time}</span>
-                                            
+                                            {/* Time Marker (Subtle) */}
+                                            <span className="absolute top-1 left-1.5 text-[9px] font-mono text-slate-700 select-none">
+                                                {time}
+                                            </span>
+
                                             {slotBooking ? (
-                                                <>
-                                                    <p className="font-bold text-white truncate">{slotBooking.userName}</p>
-                                                    <p className="text-[10px] text-slate-400 truncate">{slotBooking.serviceName}</p>
-                                                    <div className="mt-1 flex gap-1">
-                                                       {/* Quick Actions for Calendar View */}
+                                                <div className={`
+                                                    mx-0.5 rounded-lg p-2 border shadow-sm relative group overflow-hidden
+                                                    ${slotBooking.status === 'completed' 
+                                                        ? 'bg-green-900/20 border-green-800/50' 
+                                                        : 'bg-blue-900/20 border-blue-800/50'}
+                                                `}>
+                                                    <div className="relative z-10">
+                                                        <p className="font-bold text-slate-200 text-[10px] truncate leading-tight">
+                                                            {slotBooking.userName.split(' ')[0]}
+                                                        </p>
+                                                        <p className="text-[9px] text-slate-400 truncate opacity-80">
+                                                            {slotBooking.serviceName}
+                                                        </p>
+                                                    </div>
+
+                                                    {/* Quick Actions Overlay */}
+                                                    <div className="absolute inset-0 bg-slate-900/90 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                                                         <button 
                                                             onClick={() => handleUpdateStatus(slotBooking.id, 'completed')}
-                                                            className="p-1 bg-slate-800 rounded hover:text-green-500"
+                                                            className="p-1 rounded-full bg-green-500/20 text-green-400 hover:bg-green-500 hover:text-white"
                                                             title="Concluir"
                                                         >
-                                                            <Check size={10} />
+                                                            <Check size={12} />
                                                         </button>
                                                         <button 
                                                             onClick={() => handleUpdateStatus(slotBooking.id, 'cancelled')}
-                                                            className="p-1 bg-slate-800 rounded hover:text-red-500"
+                                                            className="p-1 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white"
                                                             title="Cancelar"
                                                         >
-                                                            <X size={10} />
+                                                            <X size={12} />
                                                         </button>
                                                     </div>
-                                                </>
+                                                </div>
                                             ) : (
-                                                <span className="text-center">-</span>
+                                                <div className="h-full w-full hover:bg-slate-800/30 transition-colors rounded-sm"></div>
                                             )}
                                         </div>
                                     );
                                 })}
+                                {/* Espaço extra no final para scroll */}
+                                <div className="h-12"></div>
                             </div>
-                        </div>
-                    ))}
+                         ))}
+                    </div>
                 </div>
             </div>
         </div>
@@ -1439,6 +1471,12 @@ const App: React.FC = () => {
             className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${adminTab === 'bookings' ? 'bg-slate-700 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
         >
             <CalendarCheck size={16} /> Agendamentos
+        </button>
+        <button
+            onClick={() => setAdminTab('finance')}
+            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${adminTab === 'finance' ? 'bg-slate-700 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
+        >
+            <DollarSign size={16} /> Financeiro
         </button>
         <button
             onClick={() => setAdminTab('settings')}
@@ -1622,6 +1660,107 @@ const App: React.FC = () => {
             )
         )}
       </>
+      )}
+
+      {/* TAB: FINANCEIRO */}
+      {adminTab === 'finance' && (
+        <div className="animate-fade-in space-y-4">
+            {/* Cards de Resumo */}
+            <div className="grid grid-cols-2 gap-4">
+                <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-3 opacity-5">
+                        <DollarSign size={48} />
+                    </div>
+                    <p className="text-slate-400 text-[10px] uppercase font-bold mb-1 tracking-wider">Faturamento (Concluído)</p>
+                    <h3 className="text-xl md:text-2xl font-bold text-green-400 truncate">
+                        R$ {bookingHistory.filter(b => b.status === 'completed').reduce((acc, curr) => acc + curr.price, 0).toFixed(2)}
+                    </h3>
+                    <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+                        <CheckCircle2 size={10} /> {bookingHistory.filter(b => b.status === 'completed').length} atendimentos
+                    </p>
+                </div>
+                <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-3 opacity-5">
+                        <Clock size={48} />
+                    </div>
+                    <p className="text-slate-400 text-[10px] uppercase font-bold mb-1 tracking-wider">Pendente (Estimado)</p>
+                    <h3 className="text-xl md:text-2xl font-bold text-yellow-400 truncate">
+                        R$ {bookingHistory.filter(b => b.status === 'pending' || !b.status).reduce((acc, curr) => acc + curr.price, 0).toFixed(2)}
+                    </h3>
+                    <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+                        <Clock size={10} /> {bookingHistory.filter(b => b.status === 'pending' || !b.status).length} agendados
+                    </p>
+                </div>
+            </div>
+            
+            {/* Desempenho por Barbeiro */}
+            <div className="bg-slate-800 p-5 rounded-xl border border-slate-700">
+                <h3 className="font-bold text-white mb-4 flex items-center gap-2 text-sm uppercase tracking-wider">
+                    <UserCircle2 size={16} className="text-blue-400" /> Desempenho por Barbeiro
+                </h3>
+                <div className="space-y-4">
+                    {BARBERS.map(barber => {
+                        const barberCompleted = bookingHistory.filter(b => b.barberName === barber.name && b.status === 'completed');
+                        const totalRevenue = barberCompleted.reduce((acc, curr) => acc + curr.price, 0);
+                        const count = barberCompleted.length;
+                        
+                        // Calculate percentage for progress bar (relative to total revenue of shop)
+                        const shopTotal = bookingHistory.filter(b => b.status === 'completed').reduce((acc, curr) => acc + curr.price, 0) || 1;
+                        const percentage = Math.round((totalRevenue / shopTotal) * 100);
+
+                        return (
+                            <div key={barber.id} className="relative group">
+                                <div className="flex items-center justify-between mb-2 z-10 relative">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-slate-600 group-hover:border-slate-400 transition-colors">
+                                            <img src={barber.avatarUrl} alt={barber.name} className="w-full h-full object-cover" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-slate-200">{barber.name}</p>
+                                            <p className="text-[10px] text-slate-500">{count} cortes • {percentage}% do total</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="block text-green-400 font-bold text-sm">R$ {totalRevenue.toFixed(2)}</span>
+                                    </div>
+                                </div>
+                                {/* Progress Bar Background */}
+                                <div className="h-1.5 w-full bg-slate-700 rounded-full overflow-hidden">
+                                    <div 
+                                        className="h-full bg-blue-500 rounded-full transition-all duration-1000"
+                                        style={{ width: `${percentage}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+            
+             {/* Simple Transactions List (Last 5) */}
+             <div className="bg-slate-800 p-5 rounded-xl border border-slate-700">
+                <h3 className="font-bold text-white mb-4 flex items-center gap-2 text-sm uppercase tracking-wider">
+                    <List size={16} className="text-slate-400" /> Últimas Conclusões
+                </h3>
+                <div className="space-y-0 divide-y divide-slate-700/50">
+                    {bookingHistory
+                        .filter(b => b.status === 'completed')
+                        .slice(0, 5)
+                        .map(record => (
+                        <div key={record.id} className="py-3 flex justify-between items-center first:pt-0 last:pb-0">
+                             <div>
+                                 <p className="text-xs text-white font-medium">{record.serviceName}</p>
+                                 <p className="text-[10px] text-slate-500">{record.barberName} • {record.date}</p>
+                             </div>
+                             <span className="text-xs font-bold text-green-500">+ R$ {record.price.toFixed(2)}</span>
+                        </div>
+                    ))}
+                    {bookingHistory.filter(b => b.status === 'completed').length === 0 && (
+                        <p className="text-center text-slate-500 text-xs py-2">Nenhum serviço concluído ainda.</p>
+                    )}
+                </div>
+             </div>
+        </div>
       )}
 
       {/* TAB: SETTINGS (Controle da Loja) */}
