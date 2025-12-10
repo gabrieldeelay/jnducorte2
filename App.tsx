@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { ServiceCard } from './components/ServiceCard';
@@ -1445,7 +1444,7 @@ const App: React.FC = () => {
             onClick={() => setAdminTab('settings')}
             className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${adminTab === 'settings' ? 'bg-slate-700 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
         >
-            <Settings size={16} /> Gerenciar Loja
+            <Settings size={16} /> Gerenciar
         </button>
       </div>
 
