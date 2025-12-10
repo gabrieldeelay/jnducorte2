@@ -1,0 +1,18 @@
+[
+  {
+    "id": "exemplo-123456",
+    "userName": "Nome do Cliente",
+    "userPhone": "(27) 99999-9999",
+    "serviceName": "Corte Degradê",
+    "barberName": "Jeilson Aprijo",
+    "date": "24/10/2023",
+    "time": "14:00",
+    "price": 35.00,
+    "createdAt": "2023-10-24T10:00:00.000Z",
+    "status": "pending"
+  },
+  {
+    "info": "ESTE ARQUIVO É APENAS UM MODELO.",
+    "aviso": "Para agendamentos reais entre celular e PC, configure o services/supabase.ts"
+  }
+]
