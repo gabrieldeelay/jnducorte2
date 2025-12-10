@@ -19,7 +19,8 @@ const SEED_DATA: BookingRecord[] = [
     time: '10:00',
     price: 60.00,
     createdAt: new Date(Date.now() - 86400000).toISOString(), 
-    status: 'completed'
+    status: 'completed',
+    completedAt: new Date().toISOString()
   }
 ];
 
@@ -117,10 +118,18 @@ export const bookingService = {
 
   // ATUALIZAR STATUS (UPDATE)
   async updateStatus(id: string, status: 'completed' | 'cancelled'): Promise<void> {
+    // Prepara objeto de update
+    const updates: any = { status };
+    
+    // Se estiver concluindo, grava a data de agora para o financeiro contabilizar HOJE
+    if (status === 'completed') {
+        updates.completedAt = new Date().toISOString();
+    }
+
     if (isSupabaseConfigured() && supabase) {
       const { error } = await supabase
         .from('bookings')
-        .update({ status })
+        .update(updates)
         .eq('id', id);
         
       if (error) console.error('Erro ao atualizar Supabase:', error);
@@ -130,7 +139,7 @@ export const bookingService = {
     if (data) {
         const list: BookingRecord[] = JSON.parse(data);
         const updatedList = list.map(item => 
-          item.id === id ? { ...item, status } : item
+          item.id === id ? { ...item, ...updates } : item
         );
         localStorage.setItem(DB_KEY, JSON.stringify(updatedList));
     }
@@ -156,7 +165,6 @@ export const bookingService = {
   },
 
   // --- MÉTODOS DE TRAVA DA LOJA ---
-  // Usaremos um registro "fake" na tabela bookings para guardar o status da loja
   
   async getShopStatus(): Promise<'open' | 'closed'> {
     if (isSupabaseConfigured() && supabase) {
@@ -166,21 +174,18 @@ export const bookingService = {
         .eq('id', SHOP_STATUS_ID)
         .single();
       
-      // Se status for 'cancelled', consideramos 'closed' para reaproveitar os enums, ou usamos o texto direto.
-      // Vamos usar: status='pending' (ABERTO), status='cancelled' (FECHADO) para facilitar.
       if (data) {
         return data.status === 'cancelled' ? 'closed' : 'open';
       }
-      return 'open'; // Padrão aberto
+      return 'open'; 
     }
     return 'open';
   },
 
   async setShopStatus(isOpen: boolean): Promise<void> {
-    const status = isOpen ? 'pending' : 'cancelled'; // pending = open, cancelled = closed
+    const status = isOpen ? 'pending' : 'cancelled'; 
     
     if (isSupabaseConfigured() && supabase) {
-      // Upsert: atualiza se existir, cria se não existir
       const { error } = await supabase
         .from('bookings')
         .upsert({

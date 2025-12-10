@@ -415,44 +415,58 @@ const App: React.FC = () => {
   };
 
   const parseDate = (dateStr: string): Date => {
+      if (!dateStr) return new Date();
       const [day, month, year] = dateStr.split('/').map(Number);
       return new Date(year, month - 1, day);
   };
 
   const getFinanceFilteredData = () => {
       const now = new Date();
-      now.setHours(0, 0, 0, 0);
+      // Setup start/end of "Today" in local time
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+      let rangeStart = startOfToday;
+      let rangeEnd = endOfToday;
+
+      if (financeFilter === '7days') {
+          // Last 6 days + today = 7 days total window
+          const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+          rangeStart = d;
+      } else if (financeFilter === '30days') {
+          // Last 29 days + today = 30 days total window
+          const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+          rangeStart = d;
+      } else if (financeFilter === 'custom') {
+          if (customDateStart) {
+              const [y, m, d] = customDateStart.split('-').map(Number);
+              rangeStart = new Date(y, m - 1, d); // Local midnight
+          } else {
+              // Default to long ago if start not set but custom selected
+              rangeStart = new Date(2000, 0, 1);
+          }
+          
+          if (customDateEnd) {
+              const [y, m, d] = customDateEnd.split('-').map(Number);
+              rangeEnd = new Date(y, m - 1, d, 23, 59, 59, 999);
+          } else {
+              rangeEnd = endOfToday;
+          }
+      }
 
       return bookingHistory.filter(b => {
-          const bDate = parseDate(b.date);
-          
-          if (financeFilter === 'today') {
-              return bDate.getTime() === now.getTime();
-          }
-          if (financeFilter === '7days') {
-              const diffTime = now.getTime() - bDate.getTime();
-              const diffDays = diffTime / (1000 * 3600 * 24);
-              return diffDays >= 0 && diffDays <= 7;
-          }
-          if (financeFilter === '30days') {
-              const diffTime = now.getTime() - bDate.getTime();
-              const diffDays = diffTime / (1000 * 3600 * 24);
-              return diffDays >= 0 && diffDays <= 30;
-          }
-          if (financeFilter === 'custom' && customDateStart && customDateEnd) {
-              const start = new Date(customDateStart);
-              start.setHours(0,0,0,0); // Ajuste fuso se necessario, aqui simplificado
-              // Hack para corrigir data do input type="date" que vem UTC
-              const startAdjusted = new Date(start.valueOf() + start.getTimezoneOffset() * 60000);
+          let effectiveDate: Date;
 
-              const end = new Date(customDateEnd);
-              end.setHours(0,0,0,0);
-              const endAdjusted = new Date(end.valueOf() + end.getTimezoneOffset() * 60000);
-              
-              return bDate >= startAdjusted && bDate <= endAdjusted;
+          // LOGIC: If completed, use completedAt timestamp (revenue realized).
+          // If pending/cancelled, use the scheduled date.
+          if (b.status === 'completed' && b.completedAt) {
+              effectiveDate = new Date(b.completedAt);
+          } else {
+              // Fallback to scheduled date
+              effectiveDate = parseDate(b.date);
           }
           
-          return true; // Default fallback (should be covered by today usually)
+          return effectiveDate >= rangeStart && effectiveDate <= rangeEnd;
       });
   };
 
@@ -533,9 +547,17 @@ const App: React.FC = () => {
   };
 
   const handleUpdateStatus = async (id: string, newStatus: 'completed' | 'cancelled') => {
-    setBookingHistory(prev => prev.map(record => 
-        record.id === id ? { ...record, status: newStatus } : record
-    ));
+    // Atualização Otimista
+    setBookingHistory(prev => prev.map(record => {
+        if (record.id === id) {
+            const updates: any = { status: newStatus };
+            if (newStatus === 'completed') {
+                updates.completedAt = new Date().toISOString();
+            }
+            return { ...record, ...updates };
+        }
+        return record;
+    }));
     await bookingService.updateStatus(id, newStatus);
   };
 
@@ -1450,10 +1472,8 @@ const App: React.FC = () => {
                                             </div>
                                         ))
                                     ) : (
-                                        <div className="flex-1 flex flex-col items-center justify-center text-slate-700 opacity-50 py-10">
-                                            <CalendarDays size={24} className="mb-2" />
-                                            <span className="text-[10px] uppercase font-bold tracking-wider">Livre</span>
-                                        </div>
+                                        // Espaço Vazio (Sem label "Livre" conforme solicitado)
+                                        null
                                     )}
                                     {/* Espaço extra no final */}
                                     <div className="h-12"></div>

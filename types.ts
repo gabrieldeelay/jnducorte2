@@ -39,6 +39,7 @@ export interface BookingRecord {
   price: number;
   createdAt: string;
   status?: 'pending' | 'completed' | 'cancelled';
+  completedAt?: string; // Data real da conclusão do serviço (para financeiro)
 }
 
 export enum WeekDay {
