@@ -5,7 +5,7 @@ import { BookingState, BookingRecord, ServiceCategory, Service } from './types';
 import { SERVICES, TIME_SLOTS, DAYS_OF_WEEK, BARBER_PHONE, BARBERS } from './constants';
 import { bookingService } from './services/bookingService';
 import { isSupabaseConfigured, supabase } from './services/supabase';
-import { Calendar, ChevronLeft, ChevronRight, ArrowRight, CheckCircle2, MessageCircle, Clock, User, Scissors, MapPin, Instagram, Phone, Lock, LogIn, LayoutDashboard, Smartphone, Check, X, Sparkles, UserCircle2, Trash2, Loader2, CloudOff, Cloud, Database, RefreshCcw, Bell, BellOff, Volume2, XCircle, Activity, Download, Wifi, Search, CalendarCheck, Ban, Filter, DollarSign, ArrowDownUp, SlidersHorizontal, Store, Power, List, Grid3X3, Settings, TrendingUp } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, ArrowRight, CheckCircle2, MessageCircle, Clock, User, Scissors, MapPin, Instagram, Phone, Lock, LogIn, LayoutDashboard, Smartphone, Check, X, Sparkles, UserCircle2, Trash2, Loader2, CloudOff, Cloud, Database, RefreshCcw, Bell, BellOff, Volume2, XCircle, Activity, Download, Wifi, Search, CalendarCheck, Ban, Filter, DollarSign, ArrowDownUp, SlidersHorizontal, Store, Power, List, Grid3X3, Settings, TrendingUp, CalendarDays } from 'lucide-react';
 
 // Declaração global para o OneSignal
 declare global {
@@ -52,6 +52,11 @@ const App: React.FC = () => {
   const [dashboardView, setDashboardView] = useState<'list' | 'calendar'>('list');
   const [dashboardDate, setDashboardDate] = useState<Date>(new Date());
   const [adminTab, setAdminTab] = useState<'bookings' | 'finance' | 'settings'>('bookings');
+
+  // Finance Filters
+  const [financeFilter, setFinanceFilter] = useState<'today' | '7days' | '30days' | 'custom'>('today');
+  const [customDateStart, setCustomDateStart] = useState('');
+  const [customDateEnd, setCustomDateEnd] = useState('');
 
   // Client Check Booking States
   const [searchPhone, setSearchPhone] = useState('');
@@ -407,6 +412,48 @@ const App: React.FC = () => {
 
   const normalizePhone = (phone: string) => {
     return phone.replace(/\D/g, '');
+  };
+
+  const parseDate = (dateStr: string): Date => {
+      const [day, month, year] = dateStr.split('/').map(Number);
+      return new Date(year, month - 1, day);
+  };
+
+  const getFinanceFilteredData = () => {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+
+      return bookingHistory.filter(b => {
+          const bDate = parseDate(b.date);
+          
+          if (financeFilter === 'today') {
+              return bDate.getTime() === now.getTime();
+          }
+          if (financeFilter === '7days') {
+              const diffTime = now.getTime() - bDate.getTime();
+              const diffDays = diffTime / (1000 * 3600 * 24);
+              return diffDays >= 0 && diffDays <= 7;
+          }
+          if (financeFilter === '30days') {
+              const diffTime = now.getTime() - bDate.getTime();
+              const diffDays = diffTime / (1000 * 3600 * 24);
+              return diffDays >= 0 && diffDays <= 30;
+          }
+          if (financeFilter === 'custom' && customDateStart && customDateEnd) {
+              const start = new Date(customDateStart);
+              start.setHours(0,0,0,0); // Ajuste fuso se necessario, aqui simplificado
+              // Hack para corrigir data do input type="date" que vem UTC
+              const startAdjusted = new Date(start.valueOf() + start.getTimezoneOffset() * 60000);
+
+              const end = new Date(customDateEnd);
+              end.setHours(0,0,0,0);
+              const endAdjusted = new Date(end.valueOf() + end.getTimezoneOffset() * 60000);
+              
+              return bDate >= startAdjusted && bDate <= endAdjusted;
+          }
+          
+          return true; // Default fallback (should be covered by today usually)
+      });
   };
 
   const handleSearchBookings = async () => {
@@ -1346,71 +1393,73 @@ const App: React.FC = () => {
                 {/* 2. Scrollable Body Row */}
                 <div className="flex-1 overflow-y-auto bg-slate-900/50 scrollbar-hide md:scrollbar-default">
                     <div className="grid grid-cols-3 divide-x divide-slate-800/50 min-h-0">
-                         {BARBERS.map(barber => (
-                            <div key={barber.id} className="flex flex-col">
-                                {TIME_SLOTS.map(time => {
-                                    const slotBooking = dayBookings.find(b => 
-                                        b.barberName === barber.name && 
-                                        b.time === time && 
-                                        b.status !== 'cancelled'
-                                    );
+                         {BARBERS.map(barber => {
+                             // Pega apenas os agendamentos deste barbeiro, ordenados por hora
+                             const sortedBarberBookings = dayBookings
+                                .filter(b => b.barberName === barber.name && b.status !== 'cancelled')
+                                .sort((a, b) => {
+                                    const [hA, mA] = a.time.split(':').map(Number);
+                                    const [hB, mB] = b.time.split(':').map(Number);
+                                    return (hA * 60 + mA) - (hB * 60 + mB);
+                                });
 
-                                    return (
-                                        <div 
-                                            key={`${barber.id}-${time}`}
-                                            className={`relative min-h-[56px] border-b border-dashed border-slate-800/50 flex flex-col justify-center p-1 transition-all ${
-                                                slotBooking ? 'z-10' : ''
-                                            }`}
-                                        >
-                                            {/* Time Marker (Subtle) */}
-                                            <span className="absolute top-1 left-1.5 text-[9px] font-mono text-slate-700 select-none">
-                                                {time}
-                                            </span>
-
-                                            {slotBooking ? (
-                                                <div className={`
-                                                    mx-0.5 rounded-lg p-2 border shadow-sm relative group overflow-hidden
+                             return (
+                                <div key={barber.id} className="flex flex-col min-h-full p-2 gap-2">
+                                    {sortedBarberBookings.length > 0 ? (
+                                        sortedBarberBookings.map((slotBooking) => (
+                                            <div 
+                                                key={slotBooking.id}
+                                                className={`
+                                                    rounded-xl p-3 border shadow-md relative group overflow-hidden animate-slide-up
                                                     ${slotBooking.status === 'completed' 
                                                         ? 'bg-green-900/20 border-green-800/50' 
                                                         : 'bg-blue-900/20 border-blue-800/50'}
-                                                `}>
-                                                    <div className="relative z-10">
-                                                        <p className="font-bold text-slate-200 text-[10px] truncate leading-tight">
-                                                            {slotBooking.userName.split(' ')[0]}
-                                                        </p>
-                                                        <p className="text-[9px] text-slate-400 truncate opacity-80">
-                                                            {slotBooking.serviceName}
-                                                        </p>
-                                                    </div>
-
-                                                    {/* Quick Actions Overlay */}
-                                                    <div className="absolute inset-0 bg-slate-900/90 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                                                        <button 
-                                                            onClick={() => handleUpdateStatus(slotBooking.id, 'completed')}
-                                                            className="p-1 rounded-full bg-green-500/20 text-green-400 hover:bg-green-500 hover:text-white"
-                                                            title="Concluir"
-                                                        >
-                                                            <Check size={12} />
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => handleUpdateStatus(slotBooking.id, 'cancelled')}
-                                                            className="p-1 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white"
-                                                            title="Cancelar"
-                                                        >
-                                                            <X size={12} />
-                                                        </button>
-                                                    </div>
+                                                `}
+                                            >
+                                                {/* Time Badge */}
+                                                <div className="absolute top-2 right-2 bg-slate-900/50 px-1.5 py-0.5 rounded text-[10px] font-bold font-mono text-slate-300">
+                                                    {slotBooking.time}
                                                 </div>
-                                            ) : (
-                                                <div className="h-full w-full hover:bg-slate-800/30 transition-colors rounded-sm"></div>
-                                            )}
+
+                                                <div className="relative z-10 pr-6">
+                                                    <p className="font-bold text-white text-xs truncate leading-tight mb-0.5">
+                                                        {slotBooking.userName}
+                                                    </p>
+                                                    <p className="text-[10px] text-slate-400 truncate opacity-90 leading-tight">
+                                                        {slotBooking.serviceName}
+                                                    </p>
+                                                </div>
+
+                                                {/* Quick Actions Overlay */}
+                                                <div className="absolute inset-0 bg-slate-900/90 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20 backdrop-blur-[1px]">
+                                                    <button 
+                                                        onClick={() => handleUpdateStatus(slotBooking.id, 'completed')}
+                                                        className="p-1.5 rounded-full bg-green-500/20 text-green-400 hover:bg-green-500 hover:text-white transition-all"
+                                                        title="Concluir"
+                                                    >
+                                                        <Check size={14} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleUpdateStatus(slotBooking.id, 'cancelled')}
+                                                        className="p-1.5 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition-all"
+                                                        title="Cancelar"
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="flex-1 flex flex-col items-center justify-center text-slate-700 opacity-50 py-10">
+                                            <CalendarDays size={24} className="mb-2" />
+                                            <span className="text-[10px] uppercase font-bold tracking-wider">Livre</span>
                                         </div>
-                                    );
-                                })}
-                                {/* Espaço extra no final para scroll */}
-                                <div className="h-12"></div>
-                            </div>
-                         ))}
+                                    )}
+                                    {/* Espaço extra no final */}
+                                    <div className="h-12"></div>
+                                </div>
+                             );
+                         })}
                     </div>
                 </div>
             </div>
@@ -1420,6 +1469,7 @@ const App: React.FC = () => {
 
   const renderAdminDashboardStep = () => {
     const filteredBookings = getFilteredBookings();
+    const financeData = getFinanceFilteredData();
 
     return (
     <div className="">
@@ -1665,6 +1715,59 @@ const App: React.FC = () => {
       {/* TAB: FINANCEIRO */}
       {adminTab === 'finance' && (
         <div className="animate-fade-in space-y-4">
+            {/* Filter Bar */}
+            <div className="bg-slate-800 p-2 rounded-xl border border-slate-700 flex flex-col gap-2">
+                <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
+                    <button
+                        onClick={() => setFinanceFilter('today')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${financeFilter === 'today' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                    >
+                        Hoje
+                    </button>
+                    <button
+                        onClick={() => setFinanceFilter('7days')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${financeFilter === '7days' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                    >
+                        7 Dias
+                    </button>
+                    <button
+                        onClick={() => setFinanceFilter('30days')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${financeFilter === '30days' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                    >
+                        30 Dias
+                    </button>
+                    <button
+                        onClick={() => setFinanceFilter('custom')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${financeFilter === 'custom' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                    >
+                        Personalizado
+                    </button>
+                </div>
+                
+                {financeFilter === 'custom' && (
+                    <div className="flex gap-2 items-center bg-slate-900 p-2 rounded-lg animate-fade-in">
+                         <div className="flex-1">
+                             <span className="text-[10px] text-slate-500 block mb-0.5">Início</span>
+                             <input 
+                                type="date" 
+                                value={customDateStart}
+                                onChange={(e) => setCustomDateStart(e.target.value)}
+                                className="w-full bg-slate-800 text-white text-xs p-1 rounded border border-slate-700 focus:border-blue-500 outline-none"
+                             />
+                         </div>
+                         <div className="flex-1">
+                             <span className="text-[10px] text-slate-500 block mb-0.5">Fim</span>
+                             <input 
+                                type="date" 
+                                value={customDateEnd}
+                                onChange={(e) => setCustomDateEnd(e.target.value)}
+                                className="w-full bg-slate-800 text-white text-xs p-1 rounded border border-slate-700 focus:border-blue-500 outline-none"
+                             />
+                         </div>
+                    </div>
+                )}
+            </div>
+
             {/* Cards de Resumo */}
             <div className="grid grid-cols-2 gap-4">
                 <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 relative overflow-hidden">
@@ -1673,10 +1776,10 @@ const App: React.FC = () => {
                     </div>
                     <p className="text-slate-400 text-[10px] uppercase font-bold mb-1 tracking-wider">Faturamento (Concluído)</p>
                     <h3 className="text-xl md:text-2xl font-bold text-green-400 truncate">
-                        R$ {bookingHistory.filter(b => b.status === 'completed').reduce((acc, curr) => acc + curr.price, 0).toFixed(2)}
+                        R$ {financeData.filter(b => b.status === 'completed').reduce((acc, curr) => acc + curr.price, 0).toFixed(2)}
                     </h3>
                     <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
-                        <CheckCircle2 size={10} /> {bookingHistory.filter(b => b.status === 'completed').length} atendimentos
+                        <CheckCircle2 size={10} /> {financeData.filter(b => b.status === 'completed').length} atendimentos
                     </p>
                 </div>
                 <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 relative overflow-hidden">
@@ -1685,10 +1788,10 @@ const App: React.FC = () => {
                     </div>
                     <p className="text-slate-400 text-[10px] uppercase font-bold mb-1 tracking-wider">Pendente (Estimado)</p>
                     <h3 className="text-xl md:text-2xl font-bold text-yellow-400 truncate">
-                        R$ {bookingHistory.filter(b => b.status === 'pending' || !b.status).reduce((acc, curr) => acc + curr.price, 0).toFixed(2)}
+                        R$ {financeData.filter(b => b.status === 'pending' || !b.status).reduce((acc, curr) => acc + curr.price, 0).toFixed(2)}
                     </h3>
                     <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
-                        <Clock size={10} /> {bookingHistory.filter(b => b.status === 'pending' || !b.status).length} agendados
+                        <Clock size={10} /> {financeData.filter(b => b.status === 'pending' || !b.status).length} agendados
                     </p>
                 </div>
             </div>
@@ -1696,16 +1799,16 @@ const App: React.FC = () => {
             {/* Desempenho por Barbeiro */}
             <div className="bg-slate-800 p-5 rounded-xl border border-slate-700">
                 <h3 className="font-bold text-white mb-4 flex items-center gap-2 text-sm uppercase tracking-wider">
-                    <UserCircle2 size={16} className="text-blue-400" /> Desempenho por Barbeiro
+                    <UserCircle2 size={16} className="text-blue-400" /> Desempenho
                 </h3>
                 <div className="space-y-4">
                     {BARBERS.map(barber => {
-                        const barberCompleted = bookingHistory.filter(b => b.barberName === barber.name && b.status === 'completed');
+                        const barberCompleted = financeData.filter(b => b.barberName === barber.name && b.status === 'completed');
                         const totalRevenue = barberCompleted.reduce((acc, curr) => acc + curr.price, 0);
                         const count = barberCompleted.length;
                         
                         // Calculate percentage for progress bar (relative to total revenue of shop)
-                        const shopTotal = bookingHistory.filter(b => b.status === 'completed').reduce((acc, curr) => acc + curr.price, 0) || 1;
+                        const shopTotal = financeData.filter(b => b.status === 'completed').reduce((acc, curr) => acc + curr.price, 0) || 1;
                         const percentage = Math.round((totalRevenue / shopTotal) * 100);
 
                         return (
@@ -1740,12 +1843,13 @@ const App: React.FC = () => {
              {/* Simple Transactions List (Last 5) */}
              <div className="bg-slate-800 p-5 rounded-xl border border-slate-700">
                 <h3 className="font-bold text-white mb-4 flex items-center gap-2 text-sm uppercase tracking-wider">
-                    <List size={16} className="text-slate-400" /> Últimas Conclusões
+                    <List size={16} className="text-slate-400" /> Extrato (Filtrado)
                 </h3>
                 <div className="space-y-0 divide-y divide-slate-700/50">
-                    {bookingHistory
+                    {financeData
                         .filter(b => b.status === 'completed')
-                        .slice(0, 5)
+                        .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                        .slice(0, 10)
                         .map(record => (
                         <div key={record.id} className="py-3 flex justify-between items-center first:pt-0 last:pb-0">
                              <div>
@@ -1755,8 +1859,8 @@ const App: React.FC = () => {
                              <span className="text-xs font-bold text-green-500">+ R$ {record.price.toFixed(2)}</span>
                         </div>
                     ))}
-                    {bookingHistory.filter(b => b.status === 'completed').length === 0 && (
-                        <p className="text-center text-slate-500 text-xs py-2">Nenhum serviço concluído ainda.</p>
+                    {financeData.filter(b => b.status === 'completed').length === 0 && (
+                        <p className="text-center text-slate-500 text-xs py-2">Nenhum serviço concluído neste período.</p>
                     )}
                 </div>
              </div>
