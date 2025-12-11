@@ -663,12 +663,13 @@ const App: React.FC = () => {
   };
 
   const handleExportToExcel = () => {
-      // CSV Header
-      let csvContent = "data:text/csv;charset=utf-8,";
-      csvContent += "ID,Data,Hora,Cliente,Servico,Profissional,Valor,Status\n";
+      // CSV Header - Adicionado BOM (\uFEFF) para UTF-8 e ponto e vírgula para Excel BR
+      let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+      csvContent += "ID;Data;Hora;Cliente;Serviço;Profissional;Valor;Status\n";
 
       // Filtered Data (Current View in Manager)
       const dataToExport = bookingHistory.filter(b => {
+          if (b.id === 'SHOP_STATUS_SETTINGS') return false; // Ignora configurações internas
           const search = transactionSearch.toLowerCase();
           return (
               b.userName.toLowerCase().includes(search) || 
@@ -682,13 +683,14 @@ const App: React.FC = () => {
               row.id,
               row.date,
               row.time,
-              `"${row.userName}"`, // Quote to handle commas in names
+              `"${row.userName}"`, // Quote to handle content
               `"${row.serviceName}"`,
               row.barberName,
               row.price.toString().replace('.', ','), // Brazilian decimal format
               row.status
           ];
-          csvContent += rowData.join(",") + "\n";
+          // Use semicolon delimiter
+          csvContent += rowData.join(";") + "\n";
       });
 
       const encodedUri = encodeURI(csvContent);
