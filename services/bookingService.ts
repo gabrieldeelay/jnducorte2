@@ -116,38 +116,7 @@ export const bookingService = {
     localStorage.setItem(DB_KEY, JSON.stringify(newList));
   },
 
-  // EDITAR REGISTRO COMPLETO (UPDATE)
-  async update(booking: BookingRecord): Promise<void> {
-    if (isSupabaseConfigured() && supabase) {
-      const { error } = await supabase
-        .from('bookings')
-        .update({
-            userName: booking.userName,
-            userPhone: booking.userPhone,
-            serviceName: booking.serviceName,
-            barberName: booking.barberName,
-            date: booking.date,
-            time: booking.time,
-            price: booking.price,
-            status: booking.status,
-            completedAt: booking.completedAt
-        })
-        .eq('id', booking.id);
-        
-      if (error) console.error('Erro ao atualizar Supabase:', error);
-    }
-
-    const data = localStorage.getItem(DB_KEY);
-    if (data) {
-        const list: BookingRecord[] = JSON.parse(data);
-        const updatedList = list.map(item => 
-          item.id === booking.id ? booking : item
-        );
-        localStorage.setItem(DB_KEY, JSON.stringify(updatedList));
-    }
-  },
-
-  // ATUALIZAR STATUS (UPDATE PARCIAL)
+  // ATUALIZAR STATUS (UPDATE)
   async updateStatus(id: string, status: 'completed' | 'cancelled'): Promise<void> {
     // Prepara objeto de update
     const updates: any = { status };
