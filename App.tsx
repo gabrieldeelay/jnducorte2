@@ -69,7 +69,7 @@ const App: React.FC = () => {
       description: '',
       barber: BARBERS[0].name,
       date: new Date().toISOString().split('T')[0],
-      time: '12:00',
+      time: '00:00',
       clientName: ''
   });
 
@@ -600,7 +600,7 @@ const App: React.FC = () => {
   // Salvar nova transação manual
   const handleSaveManualTransaction = async () => {
       if (!manualForm.value) {
-          alert("O valor é obrigatório.");
+          alert("Erro: O valor da transação é obrigatório.");
           return;
       }
 
@@ -612,12 +612,12 @@ const App: React.FC = () => {
 
       const newRecord: BookingRecord = {
           id: 'manual-' + Date.now(),
-          userName: manualForm.clientName || 'Cliente Avulso', // Nome opcional
-          userPhone: '00000000000', // Telefone placeholder
-          serviceName: manualForm.description || 'Serviço Avulso',
+          userName: manualForm.clientName.trim() || 'Sistema', 
+          userPhone: '00000000000', 
+          serviceName: manualForm.description.trim() || 'N/A',
           barberName: manualForm.barber,
           date: formattedDate,
-          time: manualForm.time,
+          time: '00:00', // Forçado para 00:00 como solicitado
           price: Number(manualForm.value),
           createdAt: new Date().toISOString(),
           status: 'completed', // Já entra como completado/pago
@@ -634,7 +634,7 @@ const App: React.FC = () => {
             description: '',
             barber: BARBERS[0].name,
             date: new Date().toISOString().split('T')[0],
-            time: '12:00',
+            time: '00:00',
             clientName: ''
           });
           alert("Transação adicionada com sucesso!");
@@ -2201,7 +2201,7 @@ const App: React.FC = () => {
                               </div>
                               <div>
                                   <label className="text-[10px] text-slate-500 uppercase font-bold">Descrição / Serviço</label>
-                                  <input type="text" value={manualForm.description} onChange={e => setManualForm({...manualForm, description: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white" placeholder="Ex: Corte Avulso" />
+                                  <input type="text" value={manualForm.description} onChange={e => setManualForm({...manualForm, description: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white" placeholder="Ex: Corte Avulso (Opcional)" />
                               </div>
                               <div>
                                   <label className="text-[10px] text-slate-500 uppercase font-bold">Cliente (Opcional)</label>

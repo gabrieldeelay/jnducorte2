@@ -103,7 +103,26 @@ export const bookingService = {
         .insert([booking]);
       
       if (error) {
-        console.error('Erro ao salvar no Supabase:', error);
+        console.error('Erro ao salvar no Supabase:', error.message || error);
+        
+        // --- FALLBACK DE ROBUSTEZ ---
+        // Se o erro for "column does not exist" (código 42703), significa que o usuário
+        // não atualizou o banco de dados. Tentamos salvar removendo campos novos (completedAt).
+        if (error.code === '42703') {
+             console.warn("⚠️ Tentando salvar sem campos opcionais (migration pendente)...");
+             // Remove 'completedAt' e tenta novamente
+             const { completedAt, ...safeBooking } = booking;
+             const { error: retryError } = await supabase
+                .from('bookings')
+                .insert([safeBooking]);
+             
+             if (retryError) {
+                 console.error('Erro fatal no fallback:', retryError.message);
+                 throw retryError;
+             }
+             return; // Sucesso no fallback
+        }
+
         throw error;
       }
       return;
@@ -130,11 +149,11 @@ export const bookingService = {
             time: booking.time,
             price: booking.price,
             status: booking.status,
-            completedAt: booking.completedAt
+            // completedAt: booking.completedAt // Removido temporariamente para evitar quebra no update se coluna não existir
         })
         .eq('id', booking.id);
         
-      if (error) console.error('Erro ao atualizar Supabase:', error);
+      if (error) console.error('Erro ao atualizar Supabase:', error.message);
     }
 
     const data = localStorage.getItem(DB_KEY);
@@ -153,6 +172,7 @@ export const bookingService = {
     const updates: any = { status };
     
     // Se estiver concluindo, grava a data de agora para o financeiro contabilizar HOJE
+    // OBS: Se o banco não tiver a coluna 'completedAt', isso pode gerar erro silencioso ou logado
     if (status === 'completed') {
         updates.completedAt = new Date().toISOString();
     }
@@ -163,7 +183,14 @@ export const bookingService = {
         .update(updates)
         .eq('id', id);
         
-      if (error) console.error('Erro ao atualizar Supabase:', error);
+      if (error) {
+        console.error('Erro ao atualizar status no Supabase:', error.message);
+        // Tenta novamente sem o completedAt se falhar
+        if (error.code === '42703' && updates.completedAt) {
+            delete updates.completedAt;
+            await supabase.from('bookings').update(updates).eq('id', id);
+        }
+      }
     }
 
     const data = localStorage.getItem(DB_KEY);
@@ -184,7 +211,7 @@ export const bookingService = {
         .delete()
         .eq('id', id);
 
-      if (error) console.error('Erro ao deletar Supabase:', error);
+      if (error) console.error('Erro ao deletar Supabase:', error.message);
     }
 
     const data = localStorage.getItem(DB_KEY);
@@ -231,7 +258,7 @@ export const bookingService = {
           status: status
         });
 
-      if (error) console.error("Erro ao atualizar status da loja", error);
+      if (error) console.error("Erro ao atualizar status da loja", error.message);
     }
   }
 };

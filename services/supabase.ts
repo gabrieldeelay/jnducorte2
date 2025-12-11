@@ -34,8 +34,12 @@ export const supabase = isSupabaseConfigured()
     time text not null,
     price numeric not null,
     "createdAt" timestamp with time zone default timezone('utc'::text, now()) not null,
-    status text default 'pending'
+    status text default 'pending',
+    "completedAt" timestamp with time zone
   );
+
+  -- SE VOCÊ JÁ CRIOU A TABELA ANTES, APENAS RODE ESTE COMANDO PARA ATUALIZAR:
+  alter table bookings add column "completedAt" timestamp with time zone;
 
   -- 2. Habilita segurança (Row Level Security)
   alter table bookings enable row level security;
