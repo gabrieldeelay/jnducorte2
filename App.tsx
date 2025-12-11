@@ -5,7 +5,7 @@ import { BookingState, BookingRecord, ServiceCategory, Service } from './types';
 import { SERVICES, TIME_SLOTS, DAYS_OF_WEEK, BARBER_PHONE, BARBERS } from './constants';
 import { bookingService } from './services/bookingService';
 import { isSupabaseConfigured, supabase } from './services/supabase';
-import { Calendar, ChevronLeft, ChevronRight, ArrowRight, CheckCircle2, MessageCircle, Clock, User, Scissors, MapPin, Instagram, Phone, Lock, LogIn, LayoutDashboard, Smartphone, Check, X, Sparkles, UserCircle2, Trash2, Loader2, CloudOff, Cloud, Database, RefreshCcw, Bell, BellOff, Volume2, XCircle, Activity, Download, Wifi, Search, CalendarCheck, Ban, Filter, DollarSign, ArrowDownUp, SlidersHorizontal, Store, Power, List, Grid3X3, Settings, TrendingUp, CalendarDays } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, ArrowRight, CheckCircle2, MessageCircle, Clock, User, Scissors, MapPin, Instagram, Phone, Lock, LogIn, LayoutDashboard, Smartphone, Check, X, Sparkles, UserCircle2, Trash2, Loader2, CloudOff, Cloud, Database, RefreshCcw, Bell, BellOff, Volume2, XCircle, Activity, Download, Wifi, Search, CalendarCheck, Ban, Filter, DollarSign, ArrowDownUp, SlidersHorizontal, Store, Power, List, Grid3X3, Settings, TrendingUp, CalendarDays, FileSpreadsheet, Plus, Edit2, Save } from 'lucide-react';
 
 // Declaração global para o OneSignal
 declare global {
@@ -57,6 +57,21 @@ const App: React.FC = () => {
   const [financeFilter, setFinanceFilter] = useState<'today' | '7days' | '30days' | 'custom'>('today');
   const [customDateStart, setCustomDateStart] = useState('');
   const [customDateEnd, setCustomDateEnd] = useState('');
+
+  // Transaction Manager States (New Feature)
+  const [showTransactionManager, setShowTransactionManager] = useState(false);
+  const [transactionSearch, setTransactionSearch] = useState('');
+  const [editingTransaction, setEditingTransaction] = useState<BookingRecord | null>(null);
+  const [isManualAddOpen, setIsManualAddOpen] = useState(false);
+  // Manual Add Form State
+  const [manualForm, setManualForm] = useState({
+      value: '',
+      description: '',
+      barber: BARBERS[0].name,
+      date: new Date().toISOString().split('T')[0],
+      time: '12:00',
+      clientName: ''
+  });
 
   // Client Check Booking States
   const [searchPhone, setSearchPhone] = useState('');
@@ -422,27 +437,27 @@ const App: React.FC = () => {
 
   const getFinanceFilteredData = () => {
       const now = new Date();
-      // Setup start/end of "Today" in local time
-      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      // Definição precisa do início e fim do dia "HOJE" em hora local
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
       const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
       let rangeStart = startOfToday;
       let rangeEnd = endOfToday;
 
       if (financeFilter === '7days') {
-          // Last 6 days + today = 7 days total window
-          const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-          rangeStart = d;
+          // Últimos 7 dias (incluindo hoje)
+          // Ex: Se hoje é dia 10, pega desde dia 4 (10 - 6) até 10
+          rangeStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
       } else if (financeFilter === '30days') {
-          // Last 29 days + today = 30 days total window
-          const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
-          rangeStart = d;
+          // Últimos 30 dias (incluindo hoje)
+          rangeStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29, 0, 0, 0, 0);
       } else if (financeFilter === 'custom') {
           if (customDateStart) {
               const [y, m, d] = customDateStart.split('-').map(Number);
-              rangeStart = new Date(y, m - 1, d); // Local midnight
+              rangeStart = new Date(y, m - 1, d, 0, 0, 0, 0);
           } else {
-              // Default to long ago if start not set but custom selected
+              // Se não definiu início, pega tudo desde 2000
               rangeStart = new Date(2000, 0, 1);
           }
           
@@ -450,19 +465,20 @@ const App: React.FC = () => {
               const [y, m, d] = customDateEnd.split('-').map(Number);
               rangeEnd = new Date(y, m - 1, d, 23, 59, 59, 999);
           } else {
-              rangeEnd = endOfToday;
+              // Se não definiu fim, vai até futuro distante (para não cortar pendentes futuros)
+              rangeEnd = new Date(2100, 11, 31);
           }
       }
 
       return bookingHistory.filter(b => {
           let effectiveDate: Date;
 
-          // LOGIC: If completed, use completedAt timestamp (revenue realized).
-          // If pending/cancelled, use the scheduled date.
+          // LÓGICA DE FATURAMENTO:
+          // Se completado, usa a data de conclusão (receita realizada).
+          // Se pendente/cancelado, usa a data agendada.
           if (b.status === 'completed' && b.completedAt) {
               effectiveDate = new Date(b.completedAt);
           } else {
-              // Fallback to scheduled date
               effectiveDate = parseDate(b.date);
           }
           
@@ -577,6 +593,111 @@ const App: React.FC = () => {
         setIsShopOpen(!newState); // Revert
         alert("Erro ao mudar status da loja");
     }
+  };
+
+  // --- LÓGICA DO GERENCIADOR DE TRANSAÇÕES ---
+
+  // Salvar nova transação manual
+  const handleSaveManualTransaction = async () => {
+      if (!manualForm.value) {
+          alert("O valor é obrigatório.");
+          return;
+      }
+
+      setIsSaving(true);
+      
+      // Formatar Data para BR
+      const [year, month, day] = manualForm.date.split('-');
+      const formattedDate = `${day}/${month}/${year}`;
+
+      const newRecord: BookingRecord = {
+          id: 'manual-' + Date.now(),
+          userName: manualForm.clientName || 'Cliente Avulso', // Nome opcional
+          userPhone: '00000000000', // Telefone placeholder
+          serviceName: manualForm.description || 'Serviço Avulso',
+          barberName: manualForm.barber,
+          date: formattedDate,
+          time: manualForm.time,
+          price: Number(manualForm.value),
+          createdAt: new Date().toISOString(),
+          status: 'completed', // Já entra como completado/pago
+          completedAt: new Date().toISOString()
+      };
+
+      try {
+          await bookingService.create(newRecord);
+          // O Realtime já atualiza a lista, mas fazemos update otimista local
+          setBookingHistory(prev => [newRecord, ...prev]);
+          setIsManualAddOpen(false);
+          setManualForm({
+            value: '',
+            description: '',
+            barber: BARBERS[0].name,
+            date: new Date().toISOString().split('T')[0],
+            time: '12:00',
+            clientName: ''
+          });
+          alert("Transação adicionada com sucesso!");
+      } catch (e) {
+          alert("Erro ao salvar.");
+      } finally {
+          setIsSaving(false);
+      }
+  };
+
+  // Atualizar transação existente
+  const handleUpdateTransaction = async () => {
+      if (!editingTransaction) return;
+      
+      setIsSaving(true);
+      try {
+          await bookingService.update(editingTransaction);
+          // Update otimista local
+          setBookingHistory(prev => prev.map(item => item.id === editingTransaction.id ? editingTransaction : item));
+          setEditingTransaction(null);
+      } catch (e) {
+          alert("Erro ao atualizar.");
+      } finally {
+          setIsSaving(false);
+      }
+  };
+
+  const handleExportToExcel = () => {
+      // CSV Header
+      let csvContent = "data:text/csv;charset=utf-8,";
+      csvContent += "ID,Data,Hora,Cliente,Servico,Profissional,Valor,Status\n";
+
+      // Filtered Data (Current View in Manager)
+      const dataToExport = bookingHistory.filter(b => {
+          const search = transactionSearch.toLowerCase();
+          return (
+              b.userName.toLowerCase().includes(search) || 
+              b.serviceName.toLowerCase().includes(search) ||
+              b.barberName.toLowerCase().includes(search)
+          );
+      });
+
+      dataToExport.forEach(row => {
+          const rowData = [
+              row.id,
+              row.date,
+              row.time,
+              `"${row.userName}"`, // Quote to handle commas in names
+              `"${row.serviceName}"`,
+              row.barberName,
+              row.price.toString().replace('.', ','), // Brazilian decimal format
+              row.status
+          ];
+          csvContent += rowData.join(",") + "\n";
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `transacoes_jn_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
   };
 
   // Helper Functions for Multi-Select
@@ -1059,7 +1180,10 @@ const App: React.FC = () => {
           return (
             <button
               key={barber.id}
-              onClick={() => updateBooking({ selectedBarber: barber })}
+              onClick={() => {
+                  updateBooking({ selectedBarber: barber });
+                  handleNextStep(); // Auto-advance
+              }}
               className={`relative p-4 rounded-2xl border transition-all duration-300 flex flex-col items-center justify-center gap-3 text-center group ${
                 isSelected
                   ? 'bg-blue-900/20 border-red-600 shadow-[0_0_15px_rgba(220,38,38,0.2)]'
@@ -1496,8 +1620,9 @@ const App: React.FC = () => {
       {/* HEADER */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-red-600/20 rounded-xl flex items-center justify-center text-red-500 border border-red-600/30">
-            <LayoutDashboard size={24} />
+          {/* LOGO NO PAINEL ADMIN */}
+          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-slate-700 shadow-lg relative z-10">
+              <img src="https://i.ibb.co/FbQ2cm3v/Design-sem-nome-14.png" alt="Logo" className="w-full h-full object-cover" />
           </div>
           <div>
             <h2 className="text-xl font-bold text-white leading-none mb-1">Painel</h2>
@@ -1891,6 +2016,24 @@ const App: React.FC = () => {
       {adminTab === 'settings' && (
       <div className="space-y-4 animate-fade-in">
           
+        {/* NEW: TRANSACTION MANAGER BUTTON */}
+        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 relative overflow-hidden group hover:border-blue-500 transition-colors cursor-pointer" onClick={() => setShowTransactionManager(true)}>
+            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <Database size={64} />
+            </div>
+            <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-2">
+                    <div className="p-3 bg-blue-900/30 rounded-xl text-blue-400">
+                        <FileSpreadsheet size={24} />
+                    </div>
+                    <h3 className="font-bold text-white text-lg">Histórico & Caixa</h3>
+                </div>
+                <p className="text-slate-400 text-sm max-w-[250px]">
+                    Gerencie todas as transações, adicione vendas avulsas e exporte para Excel.
+                </p>
+            </div>
+        </div>
+
         {/* SHOP STATUS CONTROL */}
         {isCloudEnabled && (
             <div className={`p-5 rounded-2xl border transition-all ${
@@ -2002,11 +2145,159 @@ const App: React.FC = () => {
         </div>
       </div>
       )}
+
+      {/* FULL SCREEN TRANSACTION MANAGER OVERLAY */}
+      {showTransactionManager && (
+          <div className="fixed inset-0 bg-slate-900 z-50 overflow-y-auto animate-fade-in safe-area-bottom">
+              <div className="sticky top-0 bg-slate-900/95 backdrop-blur border-b border-slate-800 p-4 flex items-center justify-between z-10">
+                  <div className="flex items-center gap-3">
+                      <button onClick={() => setShowTransactionManager(false)} className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-400 hover:text-white transition-colors">
+                          <ChevronLeft size={20} />
+                      </button>
+                      <h2 className="text-lg font-bold text-white">Transações</h2>
+                  </div>
+                  <div className="flex gap-2">
+                      <button onClick={handleExportToExcel} className="p-2 bg-green-900/20 text-green-400 border border-green-900/50 rounded-lg hover:bg-green-900/40" title="Exportar CSV">
+                          <FileSpreadsheet size={20} />
+                      </button>
+                      <button onClick={() => setIsManualAddOpen(true)} className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-900/20" title="Adicionar Manual">
+                          <Plus size={20} />
+                      </button>
+                  </div>
+              </div>
+
+              <div className="p-4 max-w-md mx-auto">
+                  {/* Search Bar */}
+                  <div className="mb-4 relative">
+                      <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                      <input 
+                        type="text" 
+                        placeholder="Buscar por nome, serviço ou barbeiro..." 
+                        value={transactionSearch}
+                        onChange={(e) => setTransactionSearch(e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-white placeholder:text-slate-500 focus:border-blue-500 outline-none"
+                      />
+                  </div>
+
+                  {/* Add Manual Form Collapsible */}
+                  {isManualAddOpen && (
+                      <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6 animate-slide-up">
+                          <h3 className="text-white font-bold mb-4 flex items-center justify-between">
+                              Novo Lançamento
+                              <button onClick={() => setIsManualAddOpen(false)} className="text-slate-500 hover:text-white"><X size={18}/></button>
+                          </h3>
+                          <div className="space-y-3">
+                              <div className="flex gap-2">
+                                  <div className="flex-1">
+                                      <label className="text-[10px] text-slate-500 uppercase font-bold">Valor (R$)*</label>
+                                      <input type="number" value={manualForm.value} onChange={e => setManualForm({...manualForm, value: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white" placeholder="0.00" />
+                                  </div>
+                                  <div className="flex-1">
+                                      <label className="text-[10px] text-slate-500 uppercase font-bold">Data</label>
+                                      <input type="date" value={manualForm.date} onChange={e => setManualForm({...manualForm, date: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white text-sm" />
+                                  </div>
+                              </div>
+                              <div>
+                                  <label className="text-[10px] text-slate-500 uppercase font-bold">Descrição / Serviço</label>
+                                  <input type="text" value={manualForm.description} onChange={e => setManualForm({...manualForm, description: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white" placeholder="Ex: Corte Avulso" />
+                              </div>
+                              <div>
+                                  <label className="text-[10px] text-slate-500 uppercase font-bold">Cliente (Opcional)</label>
+                                  <input type="text" value={manualForm.clientName} onChange={e => setManualForm({...manualForm, clientName: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white" placeholder="Nome do cliente" />
+                              </div>
+                              <div>
+                                  <label className="text-[10px] text-slate-500 uppercase font-bold">Profissional</label>
+                                  <select value={manualForm.barber} onChange={e => setManualForm({...manualForm, barber: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white">
+                                      {BARBERS.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                                  </select>
+                              </div>
+                              <button 
+                                onClick={handleSaveManualTransaction}
+                                disabled={isSaving}
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg mt-2 flex items-center justify-center gap-2"
+                              >
+                                  {isSaving ? <Loader2 className="animate-spin" /> : <Save size={18} />} Salvar Lançamento
+                              </button>
+                          </div>
+                      </div>
+                  )}
+
+                  {/* List */}
+                  <div className="space-y-3">
+                      {bookingHistory
+                        .filter(b => {
+                            if (b.id === 'SHOP_STATUS_SETTINGS') return false;
+                            const search = transactionSearch.toLowerCase();
+                            return (
+                                b.userName.toLowerCase().includes(search) || 
+                                b.serviceName.toLowerCase().includes(search) ||
+                                b.barberName.toLowerCase().includes(search)
+                            );
+                        })
+                        .map(record => (
+                          <div key={record.id} className="bg-slate-800 border border-slate-700 rounded-xl p-4 flex justify-between items-center group">
+                              {editingTransaction?.id === record.id ? (
+                                  // EDIT MODE
+                                  <div className="w-full space-y-2">
+                                      <div className="flex gap-2">
+                                          <input 
+                                            type="text" 
+                                            value={editingTransaction.userName} 
+                                            onChange={e => setEditingTransaction({...editingTransaction, userName: e.target.value})}
+                                            className="flex-1 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-white"
+                                          />
+                                          <input 
+                                            type="number" 
+                                            value={editingTransaction.price} 
+                                            onChange={e => setEditingTransaction({...editingTransaction, price: Number(e.target.value)})}
+                                            className="w-20 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-white font-bold"
+                                          />
+                                      </div>
+                                      <div className="flex gap-2 justify-end">
+                                          <button onClick={() => setEditingTransaction(null)} className="px-3 py-1 text-xs text-slate-400 border border-slate-600 rounded">Cancelar</button>
+                                          <button onClick={handleUpdateTransaction} className="px-3 py-1 text-xs bg-blue-600 text-white rounded font-bold">Salvar</button>
+                                      </div>
+                                  </div>
+                              ) : (
+                                  // DISPLAY MODE
+                                  <>
+                                    <div className="flex-1 min-w-0 mr-4">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-white font-bold truncate">{record.userName}</span>
+                                            {record.status === 'completed' && <CheckCircle2 size={12} className="text-green-500" />}
+                                        </div>
+                                        <p className="text-xs text-slate-400 truncate">{record.serviceName}</p>
+                                        <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-1">
+                                            <span>{record.date}</span>
+                                            <span>•</span>
+                                            <span>{record.barberName}</span>
+                                        </div>
+                                    </div>
+                                    <div className="text-right flex flex-col items-end gap-2">
+                                        <span className={`font-mono font-bold ${record.status === 'cancelled' ? 'text-red-500 line-through' : 'text-green-400'}`}>
+                                            R$ {record.price.toFixed(2)}
+                                        </span>
+                                        <button 
+                                            onClick={() => setEditingTransaction(record)}
+                                            className="p-1.5 bg-slate-700/50 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors"
+                                        >
+                                            <Edit2 size={14} />
+                                        </button>
+                                    </div>
+                                  </>
+                              )}
+                          </div>
+                        ))}
+                        {bookingHistory.length === 0 && <p className="text-center text-slate-500 mt-10">Nenhuma transação encontrada.</p>}
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
-  }
+};
 
-  // Progress Bar calculation
+// Progress Bar calculation
   const getProgress = () => {
     switch (booking.step) {
       case 'home': return '0%';
