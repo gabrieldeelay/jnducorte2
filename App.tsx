@@ -2279,12 +2279,22 @@ const App: React.FC = () => {
                                         <span className={`font-mono font-bold ${record.status === 'cancelled' ? 'text-red-500 line-through' : 'text-green-400'}`}>
                                             R$ {record.price.toFixed(2)}
                                         </span>
-                                        <button 
-                                            onClick={() => setEditingTransaction(record)}
-                                            className="p-1.5 bg-slate-700/50 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors"
-                                        >
-                                            <Edit2 size={14} />
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            <button 
+                                                onClick={() => setEditingTransaction(record)}
+                                                className="p-1.5 bg-slate-700/50 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors"
+                                                title="Editar"
+                                            >
+                                                <Edit2 size={14} />
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDeleteBooking(record.id)}
+                                                className="p-1.5 bg-red-500/10 hover:bg-red-500/20 rounded text-red-500 hover:text-red-400 transition-colors"
+                                                title="Excluir"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
                                     </div>
                                   </>
                               )}
