@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { ServiceCard } from './components/ServiceCard';
@@ -5,7 +6,7 @@ import { BookingState, BookingRecord, ServiceCategory, Service } from './types';
 import { SERVICES, TIME_SLOTS, DAYS_OF_WEEK, BARBER_PHONE, BARBERS } from './constants';
 import { bookingService } from './services/bookingService';
 import { isSupabaseConfigured, supabase } from './services/supabase';
-import { Calendar, ChevronLeft, ChevronRight, ArrowRight, CheckCircle2, MessageCircle, Clock, User, Scissors, MapPin, Instagram, Phone, Lock, LogIn, LayoutDashboard, Smartphone, Check, X, Sparkles, UserCircle2, Trash2, Loader2, CloudOff, Cloud, Database, RefreshCcw, Bell, BellOff, Volume2, XCircle, Activity, Download, Wifi, Search, CalendarCheck, Ban, Filter, DollarSign, ArrowDownUp, SlidersHorizontal, Store, Power, List, Grid3X3, Settings, TrendingUp, CalendarDays, FileSpreadsheet, Plus, Edit2, Save } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, ArrowRight, CheckCircle2, MessageCircle, Clock, User, Scissors, MapPin, Instagram, Phone, Lock, LogIn, LayoutDashboard, Smartphone, Check, X, Sparkles, UserCircle2, Trash2, Loader2, CloudOff, Cloud, Database, RefreshCcw, Bell, BellOff, Volume2, XCircle, Activity, Download, Wifi, Search, CalendarCheck, Ban, Filter, DollarSign, ArrowDownUp, SlidersHorizontal, Store, Power, List, Grid3X3, Settings, TrendingUp, CalendarDays, FileSpreadsheet, Plus, Edit2, Save, Eye, EyeOff } from 'lucide-react';
 
 // Declaração global para o OneSignal
 declare global {
@@ -27,6 +28,7 @@ const App: React.FC = () => {
   });
 
   const [adminCredentials, setAdminCredentials] = useState({ username: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   
   // Database States
@@ -540,6 +542,7 @@ const App: React.FC = () => {
       userPhone: '',
     });
     setAdminCredentials({ username: '', password: '' });
+    setShowPassword(false);
     setLoginError('');
     setSearchPhone('');
     setFoundBookings([]);
@@ -892,6 +895,25 @@ const App: React.FC = () => {
       `*Valor Total:* R$ ${totalPrice.toFixed(2)}`;
 
     const url = `https://wa.me/${BARBER_PHONE}?text=${text}`;
+    window.open(url, '_blank');
+  };
+
+  const handleContactClient = (record: BookingRecord) => {
+    const cleanPhone = normalizePhone(record.userPhone);
+    // Adiciona o prefixo 55 se o usuário não digitou
+    const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+    
+    const text = 
+      `*CONFIRMAÇÃO DE AGENDAMENTO - JN DU CORTE*%0A%0A` +
+      `*Cliente:* ${record.userName}%0A` +
+      `*Telefone:* ${record.userPhone}%0A` +
+      `*Profissional:* ${record.barberName}%0A` +
+      `*Serviços:* ${record.serviceName}%0A` +
+      `*Data:* _${record.date}_%0A` +
+      `*Hora:* _${record.time}_%0A` +
+      `*Valor Total:* R$ ${record.price.toFixed(2)}`;
+
+    const url = `https://wa.me/${finalPhone}?text=${text}`;
     window.open(url, '_blank');
   };
 
@@ -1455,12 +1477,19 @@ const App: React.FC = () => {
           <div className="relative">
              <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
              <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               value={adminCredentials.password}
               onChange={(e) => setAdminCredentials(prev => ({ ...prev, password: e.target.value }))}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 pl-10 pr-12 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
               placeholder="Digite sua senha"
              />
+             <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+             >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+             </button>
           </div>
         </div>
 
@@ -1531,7 +1560,7 @@ const App: React.FC = () => {
                                 </div>
                                 <div className="w-full">
                                     <h4 className="text-xs font-bold text-white truncate">{barber.name.split(' ')[0]}</h4>
-                                    <p className="text-[10px] text-green-400 font-mono font-medium">R$ {totalRevenue.toFixed(0)}</p>
+                                    <p className="text-[10px] text-green-400 font-medium font-mono">R$ {totalRevenue.toFixed(0)}</p>
                                 </div>
                             </div>
                          );
@@ -1586,6 +1615,13 @@ const App: React.FC = () => {
                                                         title="Concluir"
                                                     >
                                                         <Check size={14} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleContactClient(slotBooking)}
+                                                        className="p-1.5 rounded-full bg-blue-500/20 text-blue-400 hover:bg-blue-500 hover:text-white transition-all"
+                                                        title="WhatsApp"
+                                                    >
+                                                        <MessageCircle size={14} />
                                                     </button>
                                                     <button 
                                                         onClick={() => handleUpdateStatus(slotBooking.id, 'cancelled')}
@@ -1804,6 +1840,13 @@ const App: React.FC = () => {
                                 title="Concluir"
                             >
                                 <Check size={16} />
+                            </button>
+                            <button 
+                                onClick={() => handleContactClient(record)}
+                                className="p-1.5 bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 rounded-lg transition-colors"
+                                title="Enviar confirmação WhatsApp"
+                            >
+                                <MessageCircle size={16} />
                             </button>
                             <button 
                                 onClick={() => handleUpdateStatus(record.id, 'cancelled')}
