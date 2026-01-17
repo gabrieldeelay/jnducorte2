@@ -1,7 +1,7 @@
 
 import { Service, Barber } from './types';
 
-export const BARBER_PHONE = '5527997290483';
+export const BARBER_PHONE = '5527997190636';
 
 export const BARBERS: Barber[] = [
   { 
